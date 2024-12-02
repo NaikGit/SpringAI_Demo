@@ -1,42 +1,49 @@
 package net.springio.chatpdf;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
-import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 @Service
 class DocumentService {
 
-	private final ChatClient chatClient;
-	
+    private final ChatClient chatClient;
     private final VectorStore vectorStore;
-    
     private final TokenTextSplitter tokenSplitter = new TokenTextSplitter();
 
-    DocumentService(ChatClient.Builder chatClientBuilder, VectorStore vectorStore) {
-    	
-        this.chatClient = chatClientBuilder
-        		.defaultAdvisors(
-        				new SimpleLoggerAdvisor(), 
-        				new QuestionAnswerAdvisor(vectorStore, SearchRequest.defaults())) // RAG advisor
-        		.build();
+    // Inject ChatClient and VectorStore via the constructor
+    DocumentService(ChatClient chatClient, VectorStore vectorStore) {
+        this.chatClient = chatClient;
         this.vectorStore = vectorStore;
     }
-    
-    void loadDocument(Resource resource) {
-    	var pdfReader = new PagePdfDocumentReader(resource, PdfDocumentReaderConfig.defaultConfig());
 
-		vectorStore.write(tokenSplitter.split(pdfReader.read()));
+    void loadDocument(Resource resource) {
+        try {
+            // Step 1: Read the PDF content
+            var pdfReader = new PagePdfDocumentReader(resource, PdfDocumentReaderConfig.defaultConfig());
+
+            // Step 2: Split the content into tokens
+            var tokens = tokenSplitter.split(pdfReader.read());
+
+            if (tokens.isEmpty()) {
+                throw new IllegalStateException("No tokens were extracted from the PDF.");
+            }
+
+            // Step 3: Write tokens to the vector store
+            vectorStore.write(tokens);
+
+            // Log success for debugging
+            System.out.println("Document successfully uploaded to vector store!");
+            System.out.println("Tokens count: " + tokens.size());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load document: " + e.getMessage(), e);
+        }
     }
-    
+
     String askQuestion(String question) {
         return chatClient
                 .prompt()

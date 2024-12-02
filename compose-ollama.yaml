@@ -15,6 +15,17 @@ services:
       - pgvector-data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: always
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+
 volumes:
   pgvector-data:
+    driver: local
+  ollama-data:
     driver: local
